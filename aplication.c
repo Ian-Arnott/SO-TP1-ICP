@@ -14,29 +14,104 @@
 
 typedef struct
 {
-    char **paths;
-    int size;
-} PathBuffer;
+    char *path;
+    char *md5;
+    int pid;
+} MD5Result;
 
-void init_buffer(PathBuffer *buffer)
+typedef struct
 {
-    buffer->paths = NULL;
-    buffer->size = 0;
+	MD5Result* buffer;
+	int size;
+} MD5Buffer;
+
+fd_set write_set;
+fd_set read_set;
+
+int fds_write[MAX_SLAVES];
+int fds_read[MAX_SLAVES];
+pid_t pids[MAX_SLAVES];
+
+void MD5Simulation(const char *path, MD5Buffer *buff) 
+{
+	fd_set write_set_aux;
+	write_set_aux = write_set;
+	fd_set read_set_aux;
+	read_set_aux = read_set;
+
+    select(FD_SETSIZE, NULL, &write_set, NULL, NULL);
+	
+	int i;
+	for (i = 0; i < MAX_SLAVES; i++)
+	{
+		if(FD_ISSET(fds_write[i], &write_set))
+		{
+			write(fds_write[i], path, strlen(path)+1);
+			printf("escribí\n");
+		}
+			
+	}
+
+	select(FD_SETSIZE, &read_set, NULL, NULL, NULL);
+
+	for (i = 0; i < MAX_SLAVES; i++)
+	{
+		if(FD_ISSET(fds_read[i], &read_set)) 
+		{
+			printf("leí\n");
+			char md5_result[4096];
+			ssize_t bytes_read = read(fds_read[i], md5_result, sizeof(md5_result));
+			printf("bytes read: %d\n", bytes_read);
+			if (bytes_read > 0)
+			{
+				md5_result[33] = '\0';
+				printf("Archivo: %s MD5: %s\n", md5_result + 33 - bytes_read, md5_result);
+			}
+		}
+	}
+
+	write_set = write_set_aux;
+	read_set = read_set_aux;
 }
 
-void resize_buffer(PathBuffer *buffer, int new_size)
+void slave_dispatch(const char *path, MD5Buffer *buff)
 {
-    buffer->paths = realloc(buffer->paths, new_size * sizeof(char *));
-    buffer->size = new_size;
+	if (buff->size < MAX_SLAVES) 
+	{
+		pid_t slave_pid;
+		int pipes[4];
+		pipe(&pipes[0]);
+		pipe(&pipes[2]);
+
+		if ((slave_pid = fork()) == 0)
+		{
+			close(pipes[1]);
+			close(pipes[3]);
+			char in_fd_str[10], out_fd_str[10];
+			sprintf(in_fd_str, "%d", pipes[0]);
+			sprintf(out_fd_str, "%d", pipes[2]);
+
+			char *args[] = {"./slave", in_fd_str, out_fd_str, NULL};
+			execv("./slave", args);
+			perror("execv");
+			exit(EXIT_FAILURE);
+		}
+		else {
+			close(pipes[0]);
+			close(pipes[2]);
+			FD_SET(pipes[1], &write_set);
+			FD_SET(pipes[3], &read_set);
+			fds_read[buff->size] = pipes[3];
+			fds_write[buff->size] = pipes[1];
+			pids[buff->size] = slave_pid;
+			buff->size++;
+		}
+	}
+
+	MD5Simulation(path, buff);
 }
 
-void add_path(PathBuffer *buffer, const char *path)
-{
-    resize_buffer(buffer, buffer->size + 1);
-    buffer->paths[buffer->size - 1] = strdup(path);
-}
-
-void explore_paths(const char *path, PathBuffer *buffer)
+void explore_paths(const char *path, MD5Buffer *buff)
 {
     struct stat path_stat;
     stat(path, &path_stat);
@@ -58,125 +133,31 @@ void explore_paths(const char *path, PathBuffer *buffer)
 
             char new_path[PATH_MAX];
             snprintf(new_path, sizeof(new_path), "%s/%s", path, entry->d_name);
-            explore_paths(new_path, buffer);
+            explore_paths(new_path, buff);
         }
         closedir(dir);
     }
     else
     {
-        add_path(buffer, path);
-    }
-}
-
-void free_paths(PathBuffer *buff)
-{
-    for (int i = 0; i < buff->size; i++)
-    {
-        free(buff->paths[i]);
-    }
-    free(buff->paths);
-}
-
-void slave_dispatch(PathBuffer *buff)
-{
-    int num_slaves = MIN(MAX_SLAVES, buff->size);
-    pid_t slave_pid[num_slaves];
-    int pipes[num_slaves][4];
-    int active_slaves = num_slaves;
-    int next_path_index = 0;
-
-    for (int i = 0; i < num_slaves; i++)
-    {
-        pipe(&pipes[i][0]);
-        pipe(&pipes[i][2]);
-
-        slave_pid[i] = fork();
-        if (slave_pid[i] == 0)
-        {
-            close(pipes[i][0]);
-            close(pipes[i][3]);
-            char in_fd_str[10], out_fd_str[10];
-            sprintf(in_fd_str, "%d", pipes[i][2]);
-            sprintf(out_fd_str, "%d", pipes[i][1]);
-
-            char *args[] = {"./esclavo", in_fd_str, out_fd_str, NULL};
-            execv("./esclavo", args);
-            perror("execv");
-            exit(EXIT_FAILURE);
-        }
-    }
-
-    printf("se crearon todos los esclavos\n");
-
-    // Start by sending paths to slaves
-    for (int i = 0; i < num_slaves && next_path_index < buff->size; i++)
-    {
-        write(pipes[i][3], buff->paths[next_path_index], strlen(buff->paths[next_path_index]) + 1);
-        next_path_index++;
-    }
-    while (active_slaves > 0)
-    {
-        fd_set read_fds;
-        FD_ZERO(&read_fds);
-        int max_fd = -1;
-
-        for (int i = 0; i < num_slaves; i++)
-        {
-            FD_SET(pipes[i][0], &read_fds);
-            if (pipes[i][0] > max_fd)
-            {
-                max_fd = pipes[i][0];
-            }
-        }
-
-        select(max_fd + 1, &read_fds, NULL, NULL, NULL);
-        for (int i = 0; i < num_slaves; i++)
-        {
-            if (FD_ISSET(pipes[i][0], &read_fds))
-            {
-                char md5_result[34];
-                ssize_t bytes_read = read(pipes[i][0], md5_result, sizeof(md5_result));
-                if (bytes_read > 0)
-                {
-                    md5_result[33] = '\0';
-                    printf("Archivo: %s MD5: %s\n", md5_result + 33 - bytes_read, md5_result);
-                }
-                else
-                {
-                    active_slaves--;
-                }
-
-                if (next_path_index < buff->size)
-                {
-                    write(pipes[i][3], buff->paths[next_path_index], strlen(buff->paths[next_path_index]) + 1);
-                    next_path_index++;
-                }
-                else
-                {
-                    close(pipes[i][3]);
-                }
-            }
-        }
-    }
-
-    for (int i = 0; i < num_slaves; i++)
-    {
-        close(pipes[i][0]);
-        close(pipes[i][2]);
-        close(pipes[i][3]);
+        slave_dispatch(path, buff);
     }
 }
 
 int main(int argc, char const *argv[])
 {
-    PathBuffer buffer;
-    init_buffer(&buffer);
-    for (int i = 1; i < argc; i++)
+    MD5Buffer buffer;
+	buffer.size = 0;
+	buffer.buffer = NULL;
+	FD_ZERO(&write_set);
+	FD_ZERO(&read_set);
+	
+	int i;
+    for (i = 1; i < argc; i++)
     {
         explore_paths(argv[i], &buffer);
     }
-    slave_dispatch(&buffer);
-    free_paths(&buffer);
-    printf("termine!");
+
+    printf("Termine!");
+
     return 0;
 }

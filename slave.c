@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,11 +20,9 @@ int main(int argc, char *argv[])
     char path[4096];
     ssize_t bytes_read;
 
-    printf("hola naci\n");
-
     while ((bytes_read = read(in_fd, path, sizeof(path))) > 0)
     {
-        printf("estoy dentro del while del hijo\n");
+        printf("Estoy dentro del while del hijo\n");
         path[bytes_read - 1] = '\0';
 
         int pipe_fd[2];
@@ -49,7 +46,7 @@ int main(int argc, char *argv[])
             int status;
             waitpid(md5sum_pid, &status, 0);
 
-            if (WIFEXITED(status) && WEXITSTATUS(status) == 0)
+            if (WIFEXITED(status) && WEXITSTATUS(status) == 0) 
             {
                 char md5_result[33];
                 read(pipe_fd[0], md5_result, sizeof(md5_result));
@@ -59,8 +56,9 @@ int main(int argc, char *argv[])
 
                 strcpy(result,md5_result);
                 strcat(result,path);
-
+				printf("%s\n", result);
                 write(out_fd, result, strlen(result) + 1);
+				printf("escribí hijo");
                 // write(out_fd, path, strlen(path) + 1);
             }
             else
@@ -68,12 +66,11 @@ int main(int argc, char *argv[])
                 const char *error_msg = "Error al calcular el MD5\n";
                 write(out_fd, error_msg, strlen(error_msg));
             }
-
             close(pipe_fd[0]);
         }
     }
 
-    printf("sali del while del hijo\n");
+    printf("Sali del while del hijo\n");
 
     close(in_fd);
     close(out_fd);
