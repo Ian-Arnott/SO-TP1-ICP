@@ -24,7 +24,7 @@ int main(int argc, char *argv[])
     while ((bytes_read = read(in_fd, path, sizeof(path))) > 0)
     {
         path[bytes_read - 1] = '\0';
-
+        printf("me llego esto: %s\n",path);
         int pipe_fd[2];
         pipe(pipe_fd);
 
