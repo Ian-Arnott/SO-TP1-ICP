@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/select.h>
 
 int main(int argc, char *argv[])
 {
@@ -22,7 +23,6 @@ int main(int argc, char *argv[])
 
     while ((bytes_read = read(in_fd, path, sizeof(path))) > 0)
     {
-        printf("Estoy dentro del while del hijo\n");
         path[bytes_read - 1] = '\0';
 
         int pipe_fd[2];
@@ -56,10 +56,7 @@ int main(int argc, char *argv[])
 
                 strcpy(result,md5_result);
                 strcat(result,path);
-				printf("%s\n", result);
                 write(out_fd, result, strlen(result) + 1);
-				printf("escribí hijo");
-                // write(out_fd, path, strlen(path) + 1);
             }
             else
             {
@@ -69,8 +66,6 @@ int main(int argc, char *argv[])
             close(pipe_fd[0]);
         }
     }
-
-    printf("Sali del while del hijo\n");
 
     close(in_fd);
     close(out_fd);

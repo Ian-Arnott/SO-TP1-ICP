@@ -12,6 +12,7 @@
 #define MAX_SLAVES 5
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
+/*
 typedef struct
 {
     char *path;
@@ -23,7 +24,8 @@ typedef struct
 {
 	MD5Result* buffer;
 	int size;
-} MD5Buffer;
+	int status;
+} MD5Buffer;*/
 
 fd_set write_set;
 fd_set read_set;
@@ -31,52 +33,65 @@ fd_set read_set;
 int fds_write[MAX_SLAVES];
 int fds_read[MAX_SLAVES];
 pid_t pids[MAX_SLAVES];
+int path_remain;
+int path_read;
+int slaves_count;
+FILE* result;
 
-void MD5Simulation(const char *path, MD5Buffer *buff) 
+void MD5Simulation(const char *path) 
 {
 	fd_set write_set_aux;
 	write_set_aux = write_set;
-	fd_set read_set_aux;
-	read_set_aux = read_set;
 
     select(FD_SETSIZE, NULL, &write_set, NULL, NULL);
 	
 	int i;
-	for (i = 0; i < MAX_SLAVES; i++)
+	for (i = 0; i < slaves_count; i++)
 	{
 		if(FD_ISSET(fds_write[i], &write_set))
 		{
 			write(fds_write[i], path, strlen(path)+1);
-			printf("escribí\n");
-		}
-			
+			write_set = write_set_aux;
+			path_remain++;
+			break;
+		}		
 	}
 
-	select(FD_SETSIZE, &read_set, NULL, NULL, NULL);
+	fd_set read_set_aux;
+	read_set_aux = read_set;
 
-	for (i = 0; i < MAX_SLAVES; i++)
+	if(path_remain > 0)
 	{
-		if(FD_ISSET(fds_read[i], &read_set)) 
+		select(FD_SETSIZE, &read_set, NULL, NULL, NULL);
+
+		for (i = 0; i < slaves_count; i++)
 		{
-			printf("leí\n");
-			char md5_result[4096];
-			ssize_t bytes_read = read(fds_read[i], md5_result, sizeof(md5_result));
-			printf("bytes read: %d\n", bytes_read);
-			if (bytes_read > 0)
+			if(FD_ISSET(fds_read[i], &read_set)) 
 			{
-				md5_result[33] = '\0';
-				printf("Archivo: %s MD5: %s\n", md5_result + 33 - bytes_read, md5_result);
+				printf("estoy libre pid: %d, fd: %d\n", pids[i], fds_read[i]);
+				char md5_result[4096];
+				ssize_t bytes_read = read(fds_read[0], md5_result, sizeof(md5_result));
+				printf("bytes read: %d\n", bytes_read);
+				if (bytes_read > 0)
+				{
+					char md5[33];
+					char path[300];
+					strncpy(md5, md5_result,32);
+					strcpy(path, md5_result+32);
+					fprintf(result, "Archivo: %s MD5: %s PID: %d\n", path, md5, pids[i]);
+					path_remain--;
+					path_read++;
+				}
 			}
 		}
+		read_set = read_set_aux;
 	}
-
-	write_set = write_set_aux;
-	read_set = read_set_aux;
 }
 
-void slave_dispatch(const char *path, MD5Buffer *buff)
+void slave_dispatch(const char *path)
 {
-	if (buff->size < MAX_SLAVES) 
+	//if (buff->size < MAX_SLAVES) 
+	if (slaves_count < MAX_SLAVES) 
 	{
 		pid_t slave_pid;
 		int pipes[4];
@@ -86,10 +101,10 @@ void slave_dispatch(const char *path, MD5Buffer *buff)
 		if ((slave_pid = fork()) == 0)
 		{
 			close(pipes[1]);
-			close(pipes[3]);
+			close(pipes[2]);
 			char in_fd_str[10], out_fd_str[10];
 			sprintf(in_fd_str, "%d", pipes[0]);
-			sprintf(out_fd_str, "%d", pipes[2]);
+			sprintf(out_fd_str, "%d", pipes[3]);
 
 			char *args[] = {"./slave", in_fd_str, out_fd_str, NULL};
 			execv("./slave", args);
@@ -98,20 +113,24 @@ void slave_dispatch(const char *path, MD5Buffer *buff)
 		}
 		else {
 			close(pipes[0]);
-			close(pipes[2]);
+			close(pipes[3]);
 			FD_SET(pipes[1], &write_set);
-			FD_SET(pipes[3], &read_set);
-			fds_read[buff->size] = pipes[3];
-			fds_write[buff->size] = pipes[1];
-			pids[buff->size] = slave_pid;
-			buff->size++;
+			FD_SET(pipes[2], &read_set);
+			pids[slaves_count] = slave_pid;
+			fds_write[slaves_count] = pipes[1];
+			fds_read[slaves_count] = pipes[2];
+			slaves_count++;
+			/*
+			buff->buffer[buff->size].pid = slave_pid;
+			buff->size++;*/
+			
 		}
 	}
 
-	MD5Simulation(path, buff);
+	MD5Simulation(path);
 }
 
-void explore_paths(const char *path, MD5Buffer *buff)
+void explore_paths(const char *path)
 {
     struct stat path_stat;
     stat(path, &path_stat);
@@ -133,31 +152,37 @@ void explore_paths(const char *path, MD5Buffer *buff)
 
             char new_path[PATH_MAX];
             snprintf(new_path, sizeof(new_path), "%s/%s", path, entry->d_name);
-            explore_paths(new_path, buff);
+            explore_paths(new_path);
         }
         closedir(dir);
     }
     else
     {
-        slave_dispatch(path, buff);
+        slave_dispatch(path);
     }
 }
 
 int main(int argc, char const *argv[])
 {
-    MD5Buffer buffer;
+	/*
+	MD5Buffer buffer;
 	buffer.size = 0;
-	buffer.buffer = NULL;
+	buffer.buffer = NULL;*/
+	slaves_count = 0;
+	path_remain = 0;
+	path_read = 0;
 	FD_ZERO(&write_set);
 	FD_ZERO(&read_set);
+	
+	result = fopen("result.txt", "a");
 	
 	int i;
     for (i = 1; i < argc; i++)
     {
-        explore_paths(argv[i], &buffer);
+        explore_paths(argv[i]);
     }
 
-    printf("Termine!");
+    printf("Path read %d\n", path_read);
 
     return 0;
 }
