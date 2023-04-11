@@ -92,6 +92,7 @@ void MD5Simulation(const char *path)
 					printf("%s\n",path);
 					write(fds_write[i], path, strlen(path) + 1);
 					path_remain++;
+					break;
 				}
 			}
 		}
@@ -208,12 +209,10 @@ int main(int argc, char const *argv[])
 		MD5Simulation(NULL);
 	}
 
-	// for (i = 0; i < slaves_count; i++)
-	// {
-	// 	close(fds_read[i]);
-	// }
-
-	// waitpid(-1, NULL, 0);
+	for (i = 0; i < slaves_count; i++)
+	{
+		close(fds_read[i]);
+	}
 
 	printf("Path read %d\n", path_read);
 
