@@ -1,4 +1,3 @@
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -6,6 +5,7 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/select.h>
 
 int main(int argc, char *argv[])
 {
@@ -21,13 +21,10 @@ int main(int argc, char *argv[])
     char path[4096];
     ssize_t bytes_read;
 
-    printf("hola naci\n");
-
     while ((bytes_read = read(in_fd, path, sizeof(path))) > 0)
     {
-        printf("estoy dentro del while del hijo\n");
         path[bytes_read - 1] = '\0';
-
+        printf("me llego esto: %s\n",path);
         int pipe_fd[2];
         pipe(pipe_fd);
 
@@ -49,7 +46,7 @@ int main(int argc, char *argv[])
             int status;
             waitpid(md5sum_pid, &status, 0);
 
-            if (WIFEXITED(status) && WEXITSTATUS(status) == 0)
+            if (WIFEXITED(status) && WEXITSTATUS(status) == 0) 
             {
                 char md5_result[33];
                 read(pipe_fd[0], md5_result, sizeof(md5_result));
@@ -59,21 +56,16 @@ int main(int argc, char *argv[])
 
                 strcpy(result,md5_result);
                 strcat(result,path);
-
                 write(out_fd, result, strlen(result) + 1);
-                // write(out_fd, path, strlen(path) + 1);
             }
             else
             {
                 const char *error_msg = "Error al calcular el MD5\n";
                 write(out_fd, error_msg, strlen(error_msg));
             }
-
             close(pipe_fd[0]);
         }
     }
-
-    printf("sali del while del hijo\n");
 
     close(in_fd);
     close(out_fd);
