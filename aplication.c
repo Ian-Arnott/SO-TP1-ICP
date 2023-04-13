@@ -169,6 +169,7 @@ void slave_dispatch(char *path)
             pids[slaves_count] = slave_pid;
             fds_write[slaves_count] = pipes[1];
             fds_read[slaves_count] = pipes[2];
+            printf("Slave %d: write_fd=%d, read_fd=%d\n", slaves_count, fds_write[slaves_count], fds_read[slaves_count]);
             // printf("%s\n", path);
             write(fds_write[slaves_count], path, strlen(path) + 1);
             slaves_count++;
