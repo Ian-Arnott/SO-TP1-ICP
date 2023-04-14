@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #define MAX_PATH 128
 #define MD5_SIZE 33 // 32 characthers + '\0'
@@ -22,6 +23,9 @@ char path[MAX_PATH];
 char md5[MD5_SIZE];
 int pid;
 }resultType;
+
+int ftruncate(int fd, off_t length);
+
 
 int shm_create(const char *name, size_t size);
 int shm_connect(const char *name);

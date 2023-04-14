@@ -1,9 +1,16 @@
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <semaphore.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "shm_lib.h"
 
 int shm_create(const char *name, size_t size) {
     int fd = shm_open(name, O_CREAT | O_RDWR | O_EXCL, S_IRUSR | S_IWUSR);
     if (fd == -1) {
-        printf("creation error!\n");
         perror("shm_open");
         return -1;
     }
@@ -18,9 +25,8 @@ int shm_create(const char *name, size_t size) {
 }
 
 int shm_connect(const char *name) {
-    int fd = shm_open(name, O_RDONLY, 0);
+    int fd = shm_open(name, O_RDWR, 0);
     if (fd == -1) {
-        printf("connection error!\n");
         perror("shm_open");
         return -1;
     }

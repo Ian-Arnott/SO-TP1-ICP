@@ -57,6 +57,7 @@ create_files.sh
 prompt.txt
 .vscode
 /shm_prueba
+/reality_check
 
 aplication
 slave

@@ -1,14 +1,15 @@
 #include "shm_lib.h"
+#include <time.h>
 
 int main(int argc, char const *argv[])
 {
-    char *shm_name = "/shm_buffer";
-    char *sem_name = "/result_sem";
+    const char *shm_name = "/shm1";
+    const char *sem_name = "/sem1";
     int task_remaining = -1;
-
+    
     if (argc > 2)
     {
-        fprintf(stderr, "Usage: %s <task_count>\n", argv[0]);
+        printf("Usage error: %s <task_amount>", argv[0]);
         exit(EXIT_FAILURE);
     }
     else if (argc == 2)
@@ -17,46 +18,60 @@ int main(int argc, char const *argv[])
     }
     else if (argc == 1)
     {
-        scanf("%10d", &task_remaining);
+        scanf("%10d\n",&task_remaining);
     }
-
-
-    int shm_fd = shm_connect(shm_name);
-    if (shm_fd == -1)
-    {
-        exit(EXIT_FAILURE);
-    }
-
     size_t shm_size = task_remaining * sizeof(resultType);
-    void *shm_address = shm_map(shm_fd, shm_size);
-    if (shm_address == NULL)
+
+    // Wait for process 1 to create the shared memory object and semaphore
+    sleep(1);
+
+    int fd = shm_connect(shm_name);
+    if (fd == -1)
     {
-        exit(EXIT_FAILURE);
+        return 1;
     }
-    
+
+    void *addr = shm_map(fd, shm_size);
+    if (addr == NULL)
+    {
+        return 1;
+    }
+
     sem_t *sem = connect_semaphore(sem_name);
     if (sem == NULL)
     {
-        shm_unmap(shm_address, shm_size);
-        exit(EXIT_FAILURE);
+        shm_unmap(addr, shm_size);
+        return 1;
     }
 
-    resultType *shared_data = (resultType *) shm_address;
+    
+
+    // Use shared memory and semaphores here
+    resultType *shared_data = (resultType *)addr;
+
     int total_tasks = task_remaining;
-    printf("<============================== RESULTS ==============================>\n");
-    while ( task_remaining > 0)
+    int i = 1;
+    sleep(2);
+    
+    printf("<============================== RESULTADOS ==============================>\n");
+    while (task_remaining > 0)
     {
         sem_wait(sem);
-        printf("Archivo: %s MD5: %s PID: %d\n",shared_data[total_tasks-task_remaining].path,shared_data[total_tasks-task_remaining].md5,shared_data[total_tasks-task_remaining].pid);
+        printf("Archivo %d de %d: %s MD5: %s PID: %d\n", i++, total_tasks, shared_data[total_tasks - task_remaining].path, shared_data[total_tasks - task_remaining].md5, shared_data[total_tasks - task_remaining].pid);
         task_remaining--;
-        sem_post(sem);
+        // sem_post(sem);
+        size_t j = 0;
+        while (j < 100000000)
+        {
+            j++;
+        }
+        
     }
 
-    printf("\nFinished! \n %d of %d tasks remain \n", task_remaining,total_tasks);
-
-     // Clean up
+    printf("\nTermine!\n");
+    // Clean up
     close_semaphore(sem);
 
-    shm_unmap(shm_address, shm_size);
-
+    shm_unmap(addr, shm_size);
+    return 0;
 }
