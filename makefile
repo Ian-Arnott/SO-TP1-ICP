@@ -18,18 +18,15 @@ LIBS = -lrt -lpthread
 
 all: aplication view slave
 
-aplication: aplication.o shm_lib.o
-	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
+aplication: aplication.c
+	$(CC) $(CFLAGS) aplication.c shm_lib.c -o aplication
 
-view: view.o shm_lib.o
-	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
+view: view.c
+	$(CC) $(CFLAGS) view.c shm_lib.c - o view
 
-slave: slave.o
-	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
+slave: slave.c
+	$(CC) $(CFLAGS) slave.c -o slave
 
-%.o: %.c
-	$(CC) $(CFLAGS) -c -o $@ $<
 
-.PHONY: clean
 clean:
-	rm -f *.o aplication view slave
+	rm -f *.o

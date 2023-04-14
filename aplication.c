@@ -235,7 +235,7 @@ int main(int argc, char const *argv[])
     
     printf("%d", path_remain);
 
-    sleep(2);
+    sleep(10);
 
     result = fopen("result.txt", "a");
 
