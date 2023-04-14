@@ -9,6 +9,7 @@
 #include <sys/wait.h>
 #include <sys/select.h>
 #include <linux/limits.h>
+#include "shm_lib.h"
 
 #define MAX_SLAVES 5
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
@@ -97,7 +98,7 @@ void free_paths(PathBuffer *buff)
     free(buff->paths);
 }
 
-void MD5Simulation(const char *path)
+void MD5Simulation(const char *path, resultType * buffer, sem_t * sem)
 {
     int i;
 
@@ -119,11 +120,19 @@ void MD5Simulation(const char *path)
                 if (bytes_read > 0)
                 {
                     char md5[33];
-                    char path[300];
+                    char path[MAX_PATH];
                     strncpy(md5, md5_result, 32);
                     md5[32] = 0;
                     strcpy(path, md5_result + 32);
                     fprintf(result, "Archivo: %s MD5: %s PID: %d\n", path, md5, pids[i]);
+                    // Semaphore and view implementation
+                    sem_wait(sem);
+                    strncpy(buffer[path_read].md5,md5,32);
+                    buffer[path_read].md5[32] = 0;
+                    strcpy(buffer[path_read].path,path);
+                    buffer[path_read].pid = pids[i];
+                    sem_post(sem);
+                    //Finish semaphore use
                     path_read++;
                 }
                 if (path != NULL)
@@ -169,7 +178,7 @@ void slave_dispatch(char *path)
             pids[slaves_count] = slave_pid;
             fds_write[slaves_count] = pipes[1];
             fds_read[slaves_count] = pipes[2];
-            printf("Slave %d: write_fd=%d, read_fd=%d\n", slaves_count, fds_write[slaves_count], fds_read[slaves_count]);
+            // printf("Slave %d: write_fd=%d, read_fd=%d\n", slaves_count, fds_write[slaves_count], fds_read[slaves_count]);
             // printf("%s\n", path);
             write(fds_write[slaves_count], path, strlen(path) + 1);
             slaves_count++;
@@ -187,8 +196,6 @@ int main(int argc, char const *argv[])
     FD_ZERO(&write_set);
     FD_ZERO(&read_set);
 
-    result = fopen("result.txt", "a");
-
     int i;
 
     for (i = 1; i < argc; i++)
@@ -197,6 +204,42 @@ int main(int argc, char const *argv[])
     }
 
     path_remain = buffer.size;
+    
+    // Build shared memory buffer
+
+    size_t shm_size = buffer.size * sizeof(resultType);
+    char * shm_name = "/shm_buffer";
+
+    int shm_fd = shm_create(shm_name,shm_size);
+    if (shm_fd == -1) {
+        exit(EXIT_FAILURE);
+    } 
+
+    void * shm_address = shm_map(shm_fd,shm_size);
+    if (shm_address == NULL) {
+        shm_destroy(shm_name);
+        exit(EXIT_FAILURE);
+    }
+
+    // Create semaphore
+
+    char * sem_name = "/result_sem";
+    sem_t * sem = create_semaphore(sem_name,1);
+    if (sem == NULL) {
+        shm_unmap(shm_address, shm_size);
+        shm_destroy(shm_name);
+        return 1;
+    }
+
+    resultType *shared_data = (resultType *) shm_address;
+    
+    printf("%d", path_remain);
+
+    sleep(2);
+
+    result = fopen("result.txt", "a");
+
+    // Calculate MD5
 
     for (i = 0; i < MIN(path_remain, MAX_SLAVES); i++)
     {
@@ -207,11 +250,11 @@ int main(int argc, char const *argv[])
     {
         if (i < path_remain)
         {
-            MD5Simulation(buffer.paths[i++]);
+            MD5Simulation(buffer.paths[i++], shared_data, sem);
         }
         else
         {
-            MD5Simulation(NULL);
+            MD5Simulation(NULL, shared_data, sem);
         }
     }
 
@@ -222,6 +265,12 @@ int main(int argc, char const *argv[])
     }
 
     free_paths(&buffer);
+
+    close_semaphore(sem);
+    destroy_semaphore(sem_name);
+
+    shm_unmap(shm_address, shm_size);
+    shm_destroy(shm_name);
     // printf("Path read %d\n", path_read);
     return 0;
 }

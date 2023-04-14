@@ -56,6 +56,7 @@ result.txt
 create_files.sh
 prompt.txt
 .vscode
+/shm_prueba
 
 aplication
 slave

@@ -1,13 +1,35 @@
+# CC = gcc
+# CFLAGS = -Wall -Wextra -Werror -g -std=c99
+
+# all: aplication slave
+
+# aplication: aplication.c
+# 	$(CC) $(CFLAGS) aplication.c -o aplication
+
+# slave: slave.c
+# 	$(CC) $(CFLAGS) slave.c -o slave
+
+# clean:
+# 	rm -f aplication slave
+
 CC = gcc
-CFLAGS = -Wall -Wextra -Werror -g -std=c99
+CFLAGS = -Wall -Wextra -g -std=c99
+LIBS = -lrt -lpthread
 
-all: aplication slave
+all: aplication view slave
 
-aplication: aplication.c
-	$(CC) $(CFLAGS) aplication.c -o aplication
+aplication: aplication.o shm_lib.o
+	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
 
-slave: slave.c
-	$(CC) $(CFLAGS) slave.c -o slave
+view: view.o shm_lib.o
+	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
 
+slave: slave.o
+	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+.PHONY: clean
 clean:
-	rm -f aplication slave
+	rm -f *.o aplication view slave
