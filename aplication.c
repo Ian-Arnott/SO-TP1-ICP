@@ -98,7 +98,7 @@ void free_paths(PathBuffer *buff)
     free(buff->paths);
 }
 
-void MD5Simulation(const char *path, resultType *buffer, sem_t * sem)
+void MD5Simulation(const char *path, resultType *buffer)
 {
     int i;
 
@@ -125,14 +125,15 @@ void MD5Simulation(const char *path, resultType *buffer, sem_t * sem)
                     md5[32] = 0;
                     strcpy(path, md5_result + 32);
                     fprintf(result, "Archivo: %s MD5: %s PID: %d\n", path, md5, pids[i]);
+
                     // Semaphore and view implementation
-                    sem_wait(sem);
+
                     strncpy(buffer[path_read].md5, md5, 32);
                     buffer[path_read].md5[32] = 0;
                     strcpy(buffer[path_read].path, path);
                     buffer[path_read].pid = pids[i];
-                    sem_post(sem);
                     // Finish semaphore use
+
                     path_read++;
                 }
                 if (path != NULL)
@@ -194,6 +195,7 @@ int main(int argc, char const *argv[])
     FD_ZERO(&write_set);
     FD_ZERO(&read_set);
     result = fopen("result.txt", "w");
+    FILE * state = fopen("state.txt","w+");
 
     int i;
 
@@ -203,8 +205,6 @@ int main(int argc, char const *argv[])
     }
 
     path_remain = buffer.size;
-
-    printf("%d\n", path_remain);
 
     // Build shared memory buffer
 
@@ -226,7 +226,7 @@ int main(int argc, char const *argv[])
     }
 
     // Create semaphore
-    sem_t *sem = create_semaphore(sem_name, 1);
+    sem_t *sem = create_semaphore(sem_name, 0);
     if (sem == NULL)
     {
         shm_unmap(addr, shm_size);
@@ -234,8 +234,11 @@ int main(int argc, char const *argv[])
         return 1;
     }
 
-    sleep(2);
+    printf("%d\n", path_remain);
+    fflush(stdout);
 
+    fprintf(state, "se hizo el PRINTF para PIPE\n");
+    sleep(3);
     resultType *shared_data = (resultType *)addr;
 
     // Calculate MD5
@@ -248,14 +251,20 @@ int main(int argc, char const *argv[])
     {
         if (i < path_remain)
         {
-            MD5Simulation(buffer.paths[i++], shared_data, sem);
+            MD5Simulation(buffer.paths[i++], shared_data);
         }
         else
         {
-            MD5Simulation(NULL, shared_data, sem);
+            MD5Simulation(NULL, shared_data);
         }
 
+        sem_post(sem);
+        fprintf(state, "POST SEMAFORO\t");
+        // printf("DUP DI DUP -- doing stuff !\t");
+
     }
+
+    // Clean up
 
     for (i = 0; i < slaves_count; i++)
     {
@@ -264,8 +273,12 @@ int main(int argc, char const *argv[])
     }
 
     fclose(result);
-    // Clean up
 
+    
+    int sem_value;
+    sem_getvalue(sem,&sem_value);
+    fprintf(state, "\nVALOR SEMAFORO FINAL: %d de %d archivos totales\n", sem_value, path_remain);
+    
     close_semaphore(sem);
     destroy_semaphore(sem_name);
 
