@@ -20,6 +20,7 @@ int main(int argc, char const *argv[])
     {
         scanf("%10d\n",&task_remaining);
     }
+
     size_t shm_size = task_remaining * sizeof(resultType);
 
     // Wait for process 1 to create the shared memory object and semaphore
@@ -59,12 +60,7 @@ int main(int argc, char const *argv[])
         sem_wait(sem);
         printf("Archivo %d de %d: %s MD5: %s PID: %d\n", i++, total_tasks, shared_data[total_tasks - task_remaining].path, shared_data[total_tasks - task_remaining].md5, shared_data[total_tasks - task_remaining].pid);
         task_remaining--;
-        // sem_post(sem);
-        size_t j = 0;
-        while (j < 100000000)
-        {
-            j++;
-        }
+        sem_post(sem);
         
     }
 
