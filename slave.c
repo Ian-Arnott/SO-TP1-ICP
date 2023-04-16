@@ -7,6 +7,8 @@
 #include <sys/wait.h>
 #include <sys/select.h>
 
+#define MD5_SIZE 33 // 32 characthers + '\0'
+
 int main(int argc, char *argv[])
 {
     if (argc != 3)
@@ -15,19 +17,23 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
+    // Assign pipes from args
     int in_fd = atoi(argv[1]);
     int out_fd = atoi(argv[2]);
 
     char path[4096];
     ssize_t bytes_read;
 
+    // Connect to pipe and calculate MD5
     while ((bytes_read = read(in_fd, path, sizeof(path))) > 0)
     {
         path[bytes_read - 1] = '\0';
-        // printf("me llego esto: %s\n",path);
         int pipe_fd[2];
         pipe(pipe_fd);
 
+        // Calculate MD5
+
+        // Dispatch child process
         pid_t md5sum_pid = fork();
         if (md5sum_pid == 0)
         {
@@ -40,6 +46,7 @@ int main(int argc, char *argv[])
             perror("execv");
             exit(EXIT_FAILURE);
         }
+        // Return result
         else
         {
             close(pipe_fd[1]);
@@ -48,7 +55,7 @@ int main(int argc, char *argv[])
 
             if (WIFEXITED(status) && WEXITSTATUS(status) == 0) 
             {
-                char md5_result[33];
+                char md5_result[MD5_SIZE];
                 read(pipe_fd[0], md5_result, sizeof(md5_result));
                 md5_result[32] = '\0';
                 int result_size = strlen(path) + strlen(md5_result) + 1;
@@ -67,6 +74,7 @@ int main(int argc, char *argv[])
         }
     }
 
+    // Clean up
     close(in_fd);
     close(out_fd);
 

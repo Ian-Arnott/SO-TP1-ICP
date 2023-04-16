@@ -5,13 +5,13 @@ LIBS = -lrt -lpthread
 all: aplication slave view
 
 
-aplication: aplication.o shm_lib.o
+aplication: aplication.o lib.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
 
 slave: slave.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
 
-view: view.o shm_lib.o
+view: view.o lib.o
 	$(CC) $(CFLAGS) -o $@ $^ $(LIBS)
 
 

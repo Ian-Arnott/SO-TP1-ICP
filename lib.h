@@ -1,5 +1,7 @@
-#ifndef SHM_LIB_H
-#define SHM_LIB_H
+#ifndef LIB_H
+#define LIB_H
+
+// Library for SHM, semaphore and APP and VIEW definitions
 
 #include <stddef.h>
 #include <semaphore.h>
@@ -7,16 +9,22 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
-#include <semaphore.h>
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <time.h>
+#include <dirent.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <sys/wait.h>
+#include <sys/select.h>
 
+#define MAX_SLAVES 5
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define MAX_PATH 128
 #define MD5_SIZE 33 // 32 characthers + '\0'
 
+// Result buffer structure
 typedef struct resultType
 {
 char path[MAX_PATH];
@@ -25,7 +33,6 @@ int pid;
 }resultType;
 
 int ftruncate(int fd, off_t length);
-
 
 int shm_create(const char *name, size_t size);
 int shm_connect(const char *name);
