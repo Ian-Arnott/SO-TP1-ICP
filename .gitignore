@@ -63,3 +63,8 @@ state.txt
 aplication
 slave
 view
+.config/PVS-Studio/
+.bash_history
+PVS-Studio.log
+report.tasks
+strace_out
