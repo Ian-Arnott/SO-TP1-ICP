@@ -18,6 +18,8 @@
 #include <sys/socket.h>
 #include <sys/wait.h>
 #include <sys/select.h>
+#include <errno.h>
+
 
 #define MAX_SLAVES 5
 #define MIN(a, b) ((a) < (b) ? (a) : (b))

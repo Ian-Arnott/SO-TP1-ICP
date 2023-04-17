@@ -31,7 +31,7 @@ void resize_buffer(PathBuffer *buffer, int new_size)
 {
     buffer->paths = realloc(buffer->paths, new_size * sizeof(char *));
 	if (buffer->paths == NULL)
-		exit(EXIT_FAILURE)
+		exit(EXIT_FAILURE);
     buffer->size = new_size;
 }
 

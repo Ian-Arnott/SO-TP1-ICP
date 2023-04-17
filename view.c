@@ -15,15 +15,15 @@ int main(int argc, char const *argv[])
     }
     else if (argc == 4)
     {
-        strcpy(shm_name,argv[1]);
-        strcpy(sem_name,argv[2]);
+        strncpy(shm_name,argv[1], MAX_PATH);
+        strncpy(sem_name,argv[2], MAX_PATH);
         task_remaining = atoi(argv[3]);
         sleep(1);
     }
     else if (argc == 1)
     {
         char q_aux[16] = "";
-        scanf("%s %s %s", shm_name, sem_name, q_aux);
+        scanf("%127s %127s %15s", shm_name, sem_name, q_aux);
         task_remaining = atoi(q_aux);
     }
 
