@@ -1,3 +1,5 @@
+// This is a personal academic project. Dear PVS-Studio, please check it.
+// PVS-Studio Static Code Analyzer for C, C++ and C#: http://www.viva64.com
 #include "lib.h"
 
 typedef struct
@@ -12,9 +14,11 @@ fd_set read_set;
 int fds_write[MAX_SLAVES];
 int fds_read[MAX_SLAVES];
 pid_t pids[MAX_SLAVES];
+int pipes[MAX_SLAVES][4];
 int path_total;
 int path_read;
 int slaves_count;
+int slaves_necessary;
 FILE *result;
 
 void init_buffer(PathBuffer *buffer)
@@ -26,6 +30,8 @@ void init_buffer(PathBuffer *buffer)
 void resize_buffer(PathBuffer *buffer, int new_size)
 {
     buffer->paths = realloc(buffer->paths, new_size * sizeof(char *));
+	if (buffer->paths == NULL)
+		exit(EXIT_FAILURE)
     buffer->size = new_size;
 }
 
@@ -126,18 +132,24 @@ void slave_dispatch(char *path)
     if (slaves_count < MAX_SLAVES)
     {
         pid_t slave_pid;
-        int pipes[4];
-        pipe(&pipes[0]);
-        pipe(&pipes[2]);
 
         if ((slave_pid = fork()) == 0)
         {
-            close(pipes[1]);
-            close(pipes[2]);
+			int j;
+			for(j = slaves_necessary; j >= 0; j--){
+				if(j!=slaves_count){
+					close(pipes[j][0]);
+					close(pipes[j][1]);
+					close(pipes[j][2]);
+					close(pipes[j][3]);
+				}
+			}
+			close(pipes[slaves_count][1]);
+            close(pipes[slaves_count][2]);
             
             char in_fd_str[10], out_fd_str[10];
-            sprintf(in_fd_str, "%d", pipes[0]);
-            sprintf(out_fd_str, "%d", pipes[3]);
+            sprintf(in_fd_str, "%d", pipes[slaves_count][0]);
+            sprintf(out_fd_str, "%d", pipes[slaves_count][3]);
 
             char *args[] = {"./slave", in_fd_str, out_fd_str, NULL};
             execv("./slave", args);
@@ -146,13 +158,11 @@ void slave_dispatch(char *path)
         }
         else
         {
-            close(pipes[0]);
-            close(pipes[3]);
-            FD_SET(pipes[1], &write_set);
-            FD_SET(pipes[2], &read_set);
+            FD_SET(pipes[slaves_count][1], &write_set);
+            FD_SET(pipes[slaves_count][2], &read_set);
             pids[slaves_count] = slave_pid;
-            fds_write[slaves_count] = pipes[1];
-            fds_read[slaves_count] = pipes[2];
+            fds_write[slaves_count] = pipes[slaves_count][1];
+            fds_read[slaves_count] = pipes[slaves_count][2];
 
             write(fds_write[slaves_count], path, strlen(path) + 1);
             slaves_count++;
@@ -176,6 +186,7 @@ int main(int argc, char const *argv[])
         explore_paths(argv[i], &buffer);
     }
     path_total = buffer.size;
+	slaves_necessary = MIN(path_total, MAX_SLAVES);
 
     // Build shared memory buffer
     const char *shm_name = "/shm1";
@@ -210,10 +221,25 @@ int main(int argc, char const *argv[])
     sleep(2);
     resultType *shared_data = (resultType *)addr;
 
+	//Create pipes
+	for (i = 0; i < slaves_necessary; i++)
+    {
+		pipe(&pipes[i][0]);
+        pipe(&pipes[i][2]);
+    }
+
+
     // Dispatch slaves
     for (i = 0; i < MIN(path_total, MAX_SLAVES); i++)
     {
         slave_dispatch(buffer.paths[i]);
+    }
+
+	// Close parent unnecesary pipes
+	for (i = 0; i < slaves_necessary; i++)
+    {
+        close(pipes[i][0]);
+        close(pipes[i][3]);
     }
 
     // Calculate results
