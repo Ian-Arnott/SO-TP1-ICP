@@ -60,7 +60,6 @@ int main(int argc, char const *argv[])
         sem_wait(sem);
         printf("Archivo %d de %d: %s MD5: %s PID: %d\n", i++, total_tasks, shared_data[total_tasks - task_remaining].path, shared_data[total_tasks - task_remaining].md5, shared_data[total_tasks - task_remaining].pid);
         task_remaining--;
-        sleep(1);
     }
 
     printf("\nTermine!\n");
